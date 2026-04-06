@@ -5,6 +5,16 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to deploy"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - prod
 
 jobs:
   test:
@@ -42,17 +52,17 @@ jobs:
       - uses: pulumi/actions@v5
         with:
           command: preview
-          stack-name: ${{ github.base_ref == 'main' && 'prod' || 'dev' }}
+          stack-name: dev
           work-dir: .
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
 
   deploy:
-    name: Pulumi Up (main)
+    name: Pulumi Up
     runs-on: ubuntu-latest
     needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     permissions:
       id-token: write
       contents: read
@@ -70,7 +80,7 @@ jobs:
       - uses: pulumi/actions@v5
         with:
           command: up
-          stack-name: prod
+          stack-name: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
           work-dir: .
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}

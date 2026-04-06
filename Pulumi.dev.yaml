@@ -3,3 +3,4 @@ config:
   user-management:githubOrg: veron-devops
   github:token:
     secure: AAABAHklglkDyg/ZZZZu27XYrDhYnGRAbePXAWqMZQeb0QBoAvZI0N3/+2Q7X8Bg2JEciRutEMnJDN5TIrB3nUZQ0aqKXCDE
+  user-management:githubActionsRepo: ber0ng/pulumi-user-management
