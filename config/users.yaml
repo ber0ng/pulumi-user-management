@@ -7,9 +7,9 @@ users:
       - developers
     role: engineer
 
-  - name: bob-frontend
+  - name: bob-backend
     email: lucerianovern+bob@gmail.com
-    github_team: frontend
+    github_team: backend
     aws_account: prod
     aws_groups:
       - developers
