@@ -49,7 +49,7 @@ export class GitHubUserComponent extends pulumi.ComponentResource {
 export function createGitHubTeams(org: string, provider: github.Provider): GitHubTeams {
     const makeTeam = (slug: string, description: string) =>
         new github.Team(resourceName("team", slug), {
-            name: slug,
+            name: resourceName(slug),
             description,
             privacy: "closed",
         }, { provider });

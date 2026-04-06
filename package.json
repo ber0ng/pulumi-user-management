@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "bin/index.js",
   "scripts": {
-    "build": "tsc && cp -r ./config ./bin/config",
+    "build": "rm -rf ./bin && tsc && cp -r ./config ./bin/config",
     "test": "jest --passWithNoTests",
     "lint": "eslint src --ext .ts"
   },
