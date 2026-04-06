@@ -1,0 +1,33 @@
+users:
+  - name: alice
+    email: lucerianovern+alice@gmail.com
+    github_team: backend
+    aws_account: dev
+    aws_groups:
+      - developers
+    role: engineer
+
+  - name: bob
+    email: lucerianovern+bob@gmail.com
+    github_team: frontend
+    aws_account: prod
+    aws_groups:
+      - developers
+    role: engineer
+
+  - name: carol
+    email: lucerianovern+carol@gmail.com
+    github_team: backend
+    aws_account: prod
+    aws_groups:
+      - developers
+      - admins
+    role: lead
+
+  - name: dave
+    email: lucerianovern+dave@gmail.com
+    github_team: frontend
+    aws_account: dev
+    aws_groups:
+      - developers
+    role: engineer

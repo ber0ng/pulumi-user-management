@@ -1,0 +1,9 @@
+/bin/
+/node_modules/
+*.js.map
+.pulumi/
+*.env
+.env*
+Pulumi.*.yaml.bak
+*.pem
+*.key

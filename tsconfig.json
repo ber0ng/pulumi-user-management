@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "outDir": "bin",
+    "rootDir": "src",
+    "target": "ES2020",
+    "module": "node16",
+    "moduleResolution": "node16",
+    "sourceMap": true,
+    "experimentalDecorators": true,
+    "pretty": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "types": ["jest"]
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "bin"]
+}

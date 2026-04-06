@@ -1,0 +1,5 @@
+config:
+  aws:region: ap-southeast-1
+  user-management:githubOrg: veron-devops
+  github:token:
+    secure: AAABAHklglkDyg/ZZZZu27XYrDhYnGRAbePXAWqMZQeb0QBoAvZI0N3/+2Q7X8Bg2JEciRutEMnJDN5TIrB3nUZQ0aqKXCDE

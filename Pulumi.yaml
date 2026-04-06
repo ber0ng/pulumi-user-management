@@ -1,0 +1,10 @@
+name: user-management
+runtime:
+  name: nodejs
+  options:
+    typescript: false
+main: bin/
+description: GitHub and AWS IAM user management via Pulumi
+
+config:
+  aws:region: ap-southeast-1

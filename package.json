@@ -1,0 +1,25 @@
+{
+  "name": "user-management",
+  "version": "1.0.0",
+  "main": "bin/index.js",
+  "scripts": {
+    "build": "tsc && cp -r ./config ./bin/config",
+    "test": "jest --passWithNoTests",
+    "lint": "eslint src --ext .ts"
+  },
+  "dependencies": {
+    "@pulumi/aws": "^6.0.0",
+    "@pulumi/awsx": "^2.0.0",
+    "@pulumi/github": "^6.0.0",
+    "@pulumi/pulumi": "^3.0.0",
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/jest": "^29.0.0",
+    "@types/node": "^20.0.0",
+    "jest": "^29.0.0",
+    "ts-jest": "^29.0.0",
+    "typescript": "^5.0.0"
+  }
+}
