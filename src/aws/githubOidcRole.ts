@@ -3,10 +3,9 @@ import * as pulumi from "@pulumi/pulumi";
 import { resourceName, baseTags } from "../naming";
 
 interface GitHubOidcRoleArgs {
-    /** GitHub org name, e.g. "veron-devops" */
-    githubOrg: string;
-    /** Repo name to restrict access to, e.g. "my-repo". Use "*" to allow all repos in the org. */
-    repo: string;
+    /** Full repo path that runs the workflow, e.g. "ber0ng/pulumi-user-management" */
+    repoPath: string;
+
     /** IAM policy statements to attach to the role */
     policyStatements: object[];
 }
@@ -43,7 +42,7 @@ export function createGitHubOidcRole(args: GitHubOidcRoleArgs): GitHubOidcRoleOu
                     Condition: {
                         StringLike: {
                             "token.actions.githubusercontent.com:sub":
-                                `repo:${args.githubOrg}/${args.repo}:*`,
+                                `repo:${args.repoPath}:*`,
                         },
                         StringEquals: {
                             "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",

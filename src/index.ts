@@ -29,8 +29,7 @@ const awsGroups = createAwsGroups();
 
 // ── GitHub Actions OIDC Role ──────────────────────────────────────────────────
 const githubActionsRole = createGitHubOidcRole({
-    githubOrg,
-    repo: cfg.get("githubActionsRepo") ?? "*",
+    repoPath: cfg.require("githubActionsRepo"),
     policyStatements: [
         {
             Effect: "Allow",
