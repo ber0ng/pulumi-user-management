@@ -24,8 +24,8 @@ users:
       - admins
     role: lead
 
-  - name: dave-frontend
-    email: lucerianovern+dave@gmail.com
+  - name: dave-frontend2
+    email: lucerianovern+dave2@gmail.com
     github_team: frontend
     aws_account: dev
     aws_groups:
