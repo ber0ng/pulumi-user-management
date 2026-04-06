@@ -33,7 +33,16 @@ const githubActionsRole = createGitHubOidcRole({
     policyStatements: [
         {
             Effect: "Allow",
-            Action: ["s3:*", "ec2:Describe*", "iam:GetRole", "sts:GetCallerIdentity"],
+            Action: [
+                "iam:CreateUser", "iam:DeleteUser", "iam:GetUser", "iam:UpdateUser",
+                "iam:CreateAccessKey", "iam:DeleteAccessKey", "iam:ListAccessKeys",
+                "iam:AddUserToGroup", "iam:RemoveUserFromGroup", "iam:GetGroup",
+                "iam:CreateGroup", "iam:DeleteGroup",
+                "iam:CreatePolicy", "iam:DeletePolicy", "iam:GetPolicy", "iam:ListPolicyVersions",
+                "iam:AttachGroupPolicy", "iam:DetachGroupPolicy",
+                "iam:TagUser", "iam:UntagUser", "iam:ListGroupsForUser",
+                "iam:GetRole", "sts:GetCallerIdentity",
+            ],
             Resource: "*",
         },
     ],
