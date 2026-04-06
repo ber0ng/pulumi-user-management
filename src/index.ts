@@ -5,26 +5,26 @@ import { createGitHubTeams, GitHubUserComponent } from "./github/githubUserCompo
 import { createAwsGroups, AwsUserComponent } from "./aws/awsUserComponents";
 import { createGitHubOidcRole } from "./aws/githubOidcRole";
 
-// ── Config ────────────────────────────────────────────────────────────────────
+// Config
 const cfg = new pulumi.Config();
 const githubOrg = cfg.require("githubOrg");
 const githubCfg = new pulumi.Config("github");
 
-// ── GitHub Provider (explicitly scoped to org) ────────────────────────────────
+// GitHub provider
 const githubProvider = new github.Provider("github-provider", {
     owner: githubOrg,
     token: githubCfg.requireSecret("token"),
 });
 
-// ── Load users from config/users.yaml ────────────────────────────────────────
+// Load users from config/users.yaml
 const users = loadUsers();
 
-// ── GitHub ────────────────────────────────────────────────────────────────────
+// GitHub teams
 const ghTeams = createGitHubTeams(githubOrg, githubProvider);
 
 users.forEach(u => new GitHubUserComponent(u, ghTeams, { provider: githubProvider }));
 
-// ── AWS ───────────────────────────────────────────────────────────────────────
+// AWS IAM groups
 const awsGroups = createAwsGroups();
 
 // ── GitHub Actions OIDC Role ──────────────────────────────────────────────────
@@ -44,7 +44,7 @@ const awsUsers = users.map(
     (u) => new AwsUserComponent(u, awsGroups)
 );
 
-// ── Exports ───────────────────────────────────────────────────────────────────
+// Export outputs 
 export const githubTeams = {
     backend: ghTeams.backend.id,
     frontend: ghTeams.frontend.id,
