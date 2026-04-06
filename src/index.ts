@@ -2,7 +2,7 @@ import * as pulumi from "@pulumi/pulumi";
 import * as github from "@pulumi/github";
 import { loadUsers } from "./config";
 import { createGitHubTeams, GitHubUserComponent } from "./github/githubUserComponents";
-import { createAwsGroups, AwsUserComponent } from "./aws/awsUserComponents";
+import { createAwsGroups, AwsUserComponent, SsoConfig } from "./aws/awsUserComponents";
 import { createGitHubOidcRole } from "./aws/githubOidcRole";
 
 // Config
@@ -24,10 +24,17 @@ const ghTeams = createGitHubTeams(githubOrg, githubProvider);
 
 users.forEach(u => new GitHubUserComponent(u, ghTeams, { provider: githubProvider }));
 
-// AWS IAM groups
-const awsGroups = createAwsGroups();
+// AWS IAM Identity Center (SSO)
+const ssoConfig: SsoConfig = {
+    instanceArn: cfg.require("ssoInstanceArn"),
+    identityStoreId: cfg.require("ssoIdentityStoreId"),
+};
 
-// ── GitHub Actions OIDC Role ──────────────────────────────────────────────────
+const awsGroups = createAwsGroups(ssoConfig);
+
+const awsUsers = users.map(u => new AwsUserComponent(u, awsGroups, ssoConfig));
+
+// GitHub Actions OIDC Role
 const githubActionsRole = createGitHubOidcRole({
     repoPath: cfg.require("githubActionsRepo"),
     policyStatements: [
@@ -42,17 +49,15 @@ const githubActionsRole = createGitHubOidcRole({
                 "iam:AttachGroupPolicy", "iam:DetachGroupPolicy",
                 "iam:TagUser", "iam:UntagUser", "iam:ListGroupsForUser",
                 "iam:GetRole", "sts:GetCallerIdentity",
+                "sso:*", "sso-directory:*", "identitystore:*",
+                "ssoadmin:*",
             ],
             Resource: "*",
         },
     ],
 });
 
-const awsUsers = users.map(
-    (u) => new AwsUserComponent(u, awsGroups)
-);
-
-// Export outputs 
+// Exports
 export const githubTeams = {
     backend: ghTeams.backend.id,
     frontend: ghTeams.frontend.id,
@@ -60,12 +65,7 @@ export const githubTeams = {
 
 export const githubActionsRoleArn = githubActionsRole.roleArn;
 
-export const iamUsers = users.reduce((acc, u, i) => {
-    acc[u.name] = {
-        arn: awsUsers[i].user.arn,
-        // Access key secret — marked as secret so Pulumi encrypts it in state
-        accessKeyId: awsUsers[i].accessKey.id,
-        secretAccessKey: pulumi.secret(awsUsers[i].accessKey.secret),
-    };
+export const ssoUsers = users.reduce((acc, u, i) => {
+    acc[u.name] = { userId: awsUsers[i].user.userId };
     return acc;
 }, {} as Record<string, object>);

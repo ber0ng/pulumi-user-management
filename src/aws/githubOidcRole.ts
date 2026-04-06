@@ -16,19 +16,12 @@ export interface GitHubOidcRoleOutputs {
 }
 
 const GITHUB_OIDC_URL = "https://token.actions.githubusercontent.com";
-const GITHUB_OIDC_THUMBPRINT = "6938fd4d98bab03faadb97b34396831e3780aea1";
 
 export function createGitHubOidcRole(args: GitHubOidcRoleArgs): GitHubOidcRoleOutputs {
-    // OIDC provider — one per AWS account, safe to create once
-    const oidcProvider = new aws.iam.OpenIdConnectProvider(
-        resourceName("oidc-github"),
-        {
-            url: GITHUB_OIDC_URL,
-            clientIdLists: ["sts.amazonaws.com"],
-            thumbprintLists: [GITHUB_OIDC_THUMBPRINT],
-            tags: baseTags(),
-        }
-    );
+    // Look up existing OIDC provider — only one allowed per AWS account per URL
+    const oidcProvider = aws.iam.getOpenIdConnectProviderOutput({
+        url: GITHUB_OIDC_URL,
+    });
 
     // Trust policy: only allow the specified org/repo to assume this role
     const trustPolicy = oidcProvider.arn.apply(providerArn =>

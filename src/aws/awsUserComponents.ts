@@ -1,123 +1,122 @@
-import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
+import * as pulumi from "@pulumi/pulumi";
 import { UserConfig } from "../types";
 import { resourceName, baseTags } from "../naming";
 
+export interface SsoConfig {
+    instanceArn: string;
+    identityStoreId: string;
+}
+
 export interface AwsGroups {
-    developers: aws.iam.Group;
-    admins: aws.iam.Group;
+    developers: {
+        group: aws.identitystore.Group;
+        permissionSet: aws.ssoadmin.PermissionSet;
+    };
+    admins: {
+        group: aws.identitystore.Group;
+        permissionSet: aws.ssoadmin.PermissionSet;
+    };
 }
 
 export class AwsUserComponent extends pulumi.ComponentResource {
-    public readonly user: aws.iam.User;
-    public readonly accessKey: aws.iam.AccessKey;
+    public readonly user: aws.identitystore.User;
 
-    constructor(user: UserConfig, groups: AwsGroups, opts?: pulumi.ComponentResourceOptions) {
-        super("user-mgmt:aws:User", resourceName("iam", user.name), {}, opts);
+    constructor(user: UserConfig, groups: AwsGroups, ssoConfig: SsoConfig, opts?: pulumi.ComponentResourceOptions) {
+        super("user-mgmt:aws:User", resourceName("sso", user.name), {}, opts);
 
         const childOpts = { parent: this };
-        const tags = baseTags({ User: user.name, Account: user.aws_account });
 
-        // IAM user
-        this.user = new aws.iam.User(
-            resourceName("iam-user", user.name),
+        this.user = new aws.identitystore.User(
+            resourceName("sso-user", user.name),
             {
-                name: resourceName(user.aws_account, user.name),
-                path: `/${user.aws_account}/`,
-                tags,
+                identityStoreId: ssoConfig.identityStoreId,
+                userName: user.name,
+                displayName: user.name,
+                name: {
+                    givenName: user.name,
+                    familyName: user.name,
+                },
+                emails: {
+                    value: user.email,
+                    primary: true,
+                    type: "work",
+                },
             },
             childOpts
         );
 
-        // Programmatic access key (stored in Pulumi state, exported as secret)
-        this.accessKey = new aws.iam.AccessKey(
-            resourceName("iam-key", user.name),
-            { user: this.user.name },
-            childOpts
-        );
-
-        // Assign to each group
         for (const grp of user.aws_groups ?? []) {
-            const group = groups[grp as keyof AwsGroups];
-            if (!group) continue;
-            new aws.iam.UserGroupMembership(
-                resourceName("iam-grp-member", user.name, grp),
+            const groupData = groups[grp as keyof AwsGroups];
+            if (!groupData) continue;
+            new aws.identitystore.GroupMembership(
+                resourceName("sso-member", user.name, grp),
                 {
-                    user: this.user.name,
-                    groups: [group.name],
+                    identityStoreId: ssoConfig.identityStoreId,
+                    groupId: groupData.group.groupId,
+                    memberId: this.user.userId,
                 },
                 childOpts
             );
         }
 
         this.registerOutputs({
-            userName: this.user.name,
-            userArn: this.user.arn,
+            userId: this.user.userId,
+            userName: this.user.userName,
         });
     }
 }
 
-/** Creates IAM groups with least-privilege policies **/
-export function createAwsGroups(): AwsGroups {
-    const devPolicy = new aws.iam.Policy(resourceName("policy", "dev-readonly"), {
-        description: "Read-only access for dev account users",
-        policy: JSON.stringify({
-            Version: "2012-10-17",
-            Statement: [
-                {
-                    Effect: "Allow",
-                    Action: [
-                        "s3:GetObject", "s3:ListBucket",
-                        "ec2:Describe*",
-                        "logs:GetLogEvents", "logs:FilterLogEvents", "logs:DescribeLogGroups",
-                        "cloudwatch:GetMetricData", "cloudwatch:ListMetrics",
-                    ],
-                    Resource: "*",
-                },
-            ],
-        }),
-        tags: baseTags(),
-    });
+export function createAwsGroups(ssoConfig: SsoConfig): AwsGroups {
+    const accountId = aws.getCallerIdentityOutput().accountId;
 
-    const adminPolicy = new aws.iam.Policy(resourceName("policy", "admin-limited"), {
-        description: "Scoped admin access — no IAM write, no billing",
-        policy: JSON.stringify({
-            Version: "2012-10-17",
-            Statement: [
-                {
-                    Effect: "Allow",
-                    Action: ["ec2:*", "s3:*", "rds:*", "cloudwatch:*", "logs:*"],
-                    Resource: "*",
-                },
-                {
-                    Effect: "Deny",
-                    Action: ["iam:*", "organizations:*", "aws-portal:*"],
-                    Resource: "*",
-                },
-            ],
-        }),
-        tags: baseTags(),
-    });
+    const makeGroup = (
+        slug: string,
+        description: string,
+        managedPolicyArn: string,
+    ) => {
+        const group = new aws.identitystore.Group(resourceName("sso-group", slug), {
+            identityStoreId: ssoConfig.identityStoreId,
+            displayName: resourceName(slug),
+            description,
+        });
 
-    const developers = new aws.iam.Group(resourceName("group", "developers"), {
-        name: resourceName("developers"),
-        path: "/groups/",
-    });
+        const permissionSet = new aws.ssoadmin.PermissionSet(resourceName("ps", slug), {
+            instanceArn: ssoConfig.instanceArn,
+            name: resourceName(slug),
+            description,
+            sessionDuration: "PT8H",
+            tags: baseTags(),
+        });
 
-    new aws.iam.GroupPolicyAttachment(resourceName("gpa", "dev-policy"), {
-        group: developers.name,
-        policyArn: devPolicy.arn,
-    });
+        new aws.ssoadmin.ManagedPolicyAttachment(resourceName("ps-policy", slug), {
+            instanceArn: ssoConfig.instanceArn,
+            permissionSetArn: permissionSet.arn,
+            managedPolicyArn,
+        });
 
-    const admins = new aws.iam.Group(resourceName("group", "admins"), {
-        name: resourceName("admins"),
-        path: "/groups/",
-    });
+        new aws.ssoadmin.AccountAssignment(resourceName("ps-assign", slug), {
+            instanceArn: ssoConfig.instanceArn,
+            permissionSetArn: permissionSet.arn,
+            principalId: group.groupId,
+            principalType: "GROUP",
+            targetId: accountId,
+            targetType: "AWS_ACCOUNT",
+        });
 
-    new aws.iam.GroupPolicyAttachment(resourceName("gpa", "admin-policy"), {
-        group: admins.name,
-        policyArn: adminPolicy.arn,
-    });
+        return { group, permissionSet };
+    };
 
-    return { developers, admins };
+    return {
+        developers: makeGroup(
+            "developers",
+            "Read-only access for developers",
+            "arn:aws:iam::aws:policy/ReadOnlyAccess",
+        ),
+        admins: makeGroup(
+            "admins",
+            "Power user access for admins",
+            "arn:aws:iam::aws:policy/PowerUserAccess",
+        ),
+    };
 }
