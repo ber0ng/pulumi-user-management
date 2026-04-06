@@ -6,7 +6,7 @@ import { UsersFile, UserConfig } from "../types";
 // Helper to load the real config file
 function loadFixture(): UserConfig[] {
     const raw = fs.readFileSync(
-        path.resolve(__dirname, "config/users.yaml"),
+        path.resolve(__dirname, "../../config/users.yaml"),
         "utf8"
     );
     return (yaml.load(raw) as UsersFile).users;
