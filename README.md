@@ -64,6 +64,8 @@ flowchart TD
 .
 ├── config/
 │   └── users.yaml          # Single source of truth for all users
+├── docs/
+│   └── images/             # Screenshots
 ├── src/
 │   ├── index.ts            # Pulumi entrypoint
 │   ├── config.ts           # Config loader + validation
@@ -112,24 +114,73 @@ flowchart TD
 
 ## Setup
 
-### 1. Install dependencies
+### 1. Create the Pulumi project
 
 ```bash
-npm install
+# Create a new directory and initialize the Pulumi project
+mkdir user-management
+cd user-management
+pulumi new typescript
 ```
 
-### 2. Set Pulumi config secrets
+> When prompted, enter:
+>
+> - **Project name:** `user-management`
+> - **Stack name:** `dev`
+> - **Description:** _(optional)_
+
+Then create the prod stack:
 
 ```bash
+pulumi stack init prod
+pulumi stack select dev
+```
+
+### 2. Install dependencies
+
+```bash
+npm install @pulumi/aws @pulumi/awsx @pulumi/github js-yaml
+npm install --save-dev @types/js-yaml @types/jest @types/node jest ts-jest typescript
+```
+
+### 3. Set Pulumi config secrets
+
+Run these for the **dev** stack:
+
+```bash
+pulumi stack select dev
+
 # GitHub
-pulumi config set githubOrg your-org-name (e.g., veron-devops)
+pulumi config set user-management:githubOrg your-org-name
 pulumi config set --secret github:token ghp_xxxx
 
-# AWS (or use environment variables)
+# AWS
 pulumi config set aws:region ap-southeast-2
+
+# AWS IAM Identity Center
+pulumi config set user-management:ssoInstanceArn arn:aws:sso:::instance/ssoins-xxxxxxxxx
+pulumi config set user-management:ssoIdentityStoreId d-xxxxxxxxx
+
+# GitHub Actions OIDC
+pulumi config set user-management:githubActionsRepo your-github-username/your-repo-name
 ```
 
-### 3. Add / edit users
+Then repeat for the **prod** stack:
+
+```bash
+pulumi stack select prod
+
+pulumi config set user-management:githubOrg your-org-name
+pulumi config set --secret github:token ghp_xxxx
+pulumi config set aws:region ap-southeast-2
+pulumi config set user-management:ssoInstanceArn arn:aws:sso:::instance/ssoins-xxxxxxxxx
+pulumi config set user-management:ssoIdentityStoreId d-xxxxxxxxx
+pulumi config set user-management:githubActionsRepo your-github-username/your-repo-name
+```
+
+> The SSO Instance ARN and Identity Store ID can be found in **AWS Console → IAM Identity Center → Settings**.
+
+### 4. Add / edit users
 
 Edit `config/users.yaml`. Fields:
 
@@ -142,7 +193,7 @@ Edit `config/users.yaml`. Fields:
 | `aws_groups`  | `[developers]` and/or `[admins]` |
 | `role`        | `engineer` \| `lead`             |
 
-### 4. Deploy
+### 5. Deploy
 
 ```bash
 # Dev stack
@@ -158,7 +209,7 @@ pulumi preview
 pulumi up
 ```
 
-### 5. Run tests
+### 6. Run tests
 
 ```bash
 npm test
@@ -185,3 +236,88 @@ Required GitHub Actions secrets:
 - `PULUMI_ACCESS_TOKEN`
 - `AWS_OIDC_ROLE_ARN`
 - `GH_TOKEN`
+
+## Troubleshooting
+
+### Pulumi is not logged in
+
+```
+error: no credentials provided
+```
+
+You are not authenticated with Pulumi Cloud. Run:
+
+```bash
+pulumi login
+```
+
+### Missing required configuration variable
+
+```
+error: Missing required configuration variable 'user-management:xxx'
+```
+
+A config value is missing for the current stack. Refer to [Set Pulumi config secrets](#3-set-pulumi-config-secrets) and set the missing value:
+
+```bash
+pulumi config set user-management:<variable> <value>
+```
+
+### GitHub token has insufficient scopes
+
+```
+error: 403 Forbidden
+```
+
+Your PAT does not have the required scopes. Regenerate it with `admin:org` and `user` scopes in GitHub → Settings → Developer settings → Personal access tokens.
+
+### GitHub username not found (404)
+
+```
+error: 404 Not Found — PUT /orgs/{org}/memberships/{username}
+```
+
+The `name` field in `users.yaml` does not match a real GitHub username. Make sure each user has an existing GitHub account and the username is spelled correctly.
+z
+
+### AWS IAM Identity Center not enabled
+
+```
+error: ResourceNotFoundException
+```
+
+IAM Identity Center has not been enabled in your AWS account. Go to **AWS Console → IAM Identity Center → Enable** before running `pulumi up`.
+
+---
+
+### AWS insufficient permissions
+
+```
+error: AccessDenied
+```
+
+The AWS credentials being used lack permissions to create the required resources. Ensure the IAM user or role has permissions for `identitystore:*`, `ssoadmin:*`, `iam:*`, and `sts:GetCallerIdentity`.
+
+---
+
+### TypeScript compilation error
+
+```
+error TS2345: Argument of type...
+```
+
+Run the build to see the full error:
+
+```bash
+npm run build
+```
+
+Fix the TypeScript error in `src/` before running `pulumi up`.
+
+### `pulumi up` runs but no changes applied
+
+The compiled output in `bin/` is stale. Always build before deploying:
+
+```bash
+npm run build && pulumi up
+```
