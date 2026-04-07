@@ -1,6 +1,6 @@
 # User Management - Pulumi (TypeScript)
 
-Manages GitHub org membership/teams and AWS IAM users from a single config file.
+Manages GitHub org membership/teams and AWS IAM Identity Center (SSO) users across multiple AWS accounts from a single config file.
 
 ## Architecture
 
@@ -23,18 +23,18 @@ flowchart TD
     E --> E2[Invite Users to Org]
     E --> E3[Assign Users to Teams\nlook up existing]
 
-    C -->|dev| F[AWS IAM Identity Center]
-    C -->|prod| G[AWS IAM Identity Center]
+    C -->|dev| F[AWS IAM Identity Center\nDev Account]
+    C -->|prod| G[AWS IAM Identity Center\nProd Account]
 
-    F --> F1[Create SSO Users]
+    F --> F1[Create SSO Users\naws_account = dev]
     F --> F2[Create Groups\ndevelopers / admins]
     F --> F3[Attach Permission Sets\nReadOnly / PowerUser]
-    F --> F4[Assign Groups to Account]
+    F --> F4[Assign Groups to\nDev AWS Account]
 
-    G --> G1[Skip SSO Users\nmanaged by dev]
+    G --> G1[Create SSO Users\naws_account = prod]
     G --> G2[Create Groups\ndevelopers / admins]
-    G --> G3[Attach Permission Sets]
-    G --> G4[Assign Groups to Account]
+    G --> G3[Attach Permission Sets\nReadOnly / PowerUser]
+    G --> G4[Assign Groups to\nProd AWS Account]
 
     B --> H[GitHub Actions OIDC Role]
     H --> H1[IAM Role with\nWebIdentity Trust]
@@ -58,6 +58,37 @@ flowchart TD
     M --> O[pulumi up - prod stack]
 ```
 
+## Screenshots
+
+### AWS Organization
+
+![AWS Organization](docs/images/organization.png)
+
+### AWS IAM Identity Center Users
+
+![SSO Users](docs/images/users.png)
+
+### AWS IAM Identity Center Groups
+
+![IAM Group](docs/images/groups.png)
+
+### AWS Dev Dashboard
+
+![Dev Dashboard](docs/images/alice-backend-dashboard.png)
+
+### AWS Prod Dashboard
+
+![Prod Dashboard](docs/images/carol-backend-dashboard.png)
+
+### GitHub Teams with Members
+
+![GitHub Teams](docs/images/github-teams.png)
+![GitHub Members](docs/images/github-members.png)
+
+### Pulumi Stack
+
+![Pulumi Stack](docs/images/pulumi-stack.png)
+
 ## Project Structure
 
 ```
@@ -72,14 +103,15 @@ flowchart TD
 │   ├── naming.ts           # Naming conventions & tags
 │   ├── types.ts            # Shared TypeScript types
 │   ├── github/
-│   │   └── gitHubUserComponents.ts
+│   │   └── githubUserComponents.ts
 │   ├── aws/
-│   │   └── awsUserComponents.ts
+│   │   ├── awsUserComponents.ts
 │   │   └── githubOidcRole.ts
 │   └── __tests__/
 │       └── config.test.ts
-├── .github/workflows/
-│   └── deploy.yml          # CI/CD pipeline
+├── .github/
+│   └── workflows/
+│       └── deploy.yml      # CI/CD pipeline
 ├── Pulumi.yaml
 ├── Pulumi.dev.yaml
 ├── Pulumi.prod.yaml
@@ -88,9 +120,13 @@ flowchart TD
 
 ## Prerequisites
 
-### AWS Account
+### AWS Account & Organizations
 
-- An active AWS account with permissions to create IAM users, groups, roles, and OIDC providers
+- An active AWS account enabled as the **management account** in AWS Organizations
+- Two member accounts created under the organization:
+  - `dev` — for development environment
+  - `prod` — for production environment
+- AWS IAM Identity Center **enabled** in the management account (AWS Console → IAM Identity Center → Enable)
 - AWS CLI configured locally (`aws configure`) or credentials available as environment variables
 
 ### GitHub Organization (Free plan)
@@ -161,6 +197,9 @@ pulumi config set aws:region ap-southeast-2
 pulumi config set user-management:ssoInstanceArn arn:aws:sso:::instance/ssoins-xxxxxxxxx
 pulumi config set user-management:ssoIdentityStoreId d-xxxxxxxxx
 
+# AWS Account ID for dev (from AWS Organizations)
+pulumi config set user-management:awsAccountId your-dev-account-id
+
 # GitHub Actions OIDC
 pulumi config set user-management:githubActionsRepo your-github-username/your-repo-name
 ```
@@ -175,34 +214,39 @@ pulumi config set --secret github:token ghp_xxxx
 pulumi config set aws:region ap-southeast-2
 pulumi config set user-management:ssoInstanceArn arn:aws:sso:::instance/ssoins-xxxxxxxxx
 pulumi config set user-management:ssoIdentityStoreId d-xxxxxxxxx
+
+# AWS Account ID for prod (from AWS Organizations)
+pulumi config set user-management:awsAccountId your-prod-account-id
+
 pulumi config set user-management:githubActionsRepo your-github-username/your-repo-name
 ```
 
 > The SSO Instance ARN and Identity Store ID can be found in **AWS Console → IAM Identity Center → Settings**.
+> The AWS Account IDs can be found in **AWS Console → AWS Organizations → AWS accounts**.
 
 ### 4. Add / edit users
 
 Edit `config/users.yaml`. Fields:
 
-| Field         | Required                         |
-| ------------- | -------------------------------- |
-| `name`        | GitHub username                  |
-| `email`       | User email                       |
-| `github_team` | `backend` \| `frontend`          |
-| `aws_account` | `dev` \| `prod`                  |
-| `aws_groups`  | `[developers]` and/or `[admins]` |
-| `role`        | `engineer` \| `lead`             |
+| Field         | Description                                                                |
+| ------------- | -------------------------------------------------------------------------- |
+| `name`        | GitHub username — must match an existing GitHub account                    |
+| `email`       | User email — used for SSO account creation                                 |
+| `github_team` | `backend` \| `frontend` — GitHub team to assign the user to                |
+| `aws_account` | `dev` \| `prod` — determines which AWS account the user gets SSO access to |
+| `aws_groups`  | `[developers]` and/or `[admins]` — IAM Identity Center groups              |
+| `role`        | `engineer` \| `lead` — lead becomes team maintainer in GitHub              |
 
 ### 5. Deploy
 
 ```bash
-# Dev stack
+# Dev stack — creates SSO users with aws_account: dev
 npm run build
 pulumi stack select dev
 pulumi preview
 pulumi up
 
-# Prod stack
+# Prod stack — creates SSO users with aws_account: prod
 npm run build
 pulumi stack select prod
 pulumi preview
@@ -219,23 +263,35 @@ npm test
 
 - GitHub token and AWS credentials are **never in source code**
 - GitHub token is stored as a Pulumi encrypted secret
-- Using GitHub OIDC for better security instead of using ACCESS KEY and SECRET KEY
+- Using GitHub OIDC for CI/CD instead of long-lived AWS access keys
 - CI reads secrets from GitHub Actions repository secrets
 
 ## Multi-Environment Support
 
-Two stacks: `dev` and `prod`. Each has its own `Pulumi.<stack>.yaml` for stack-level config overrides. Resource names are automatically prefixed with `{project}-{stack}-`.
+Two stacks: `dev` and `prod`, each backed by a separate AWS member account under AWS Organizations.
+
+| Stack  | AWS Account  | SSO Users           | GitHub Teams           |
+| ------ | ------------ | ------------------- | ---------------------- |
+| `dev`  | Dev account  | `aws_account: dev`  | shared org-level teams |
+| `prod` | Prod account | `aws_account: prod` | shared org-level teams |
+
+- Resource names are automatically prefixed with `{project}-{stack}-`
+- GitHub teams (`backend`, `frontend`) are **org-level** and shared across stacks
+- SSO users are filtered by `aws_account` field — each user only gets access to their designated account
 
 ## CI/CD
 
-- **Pull Request** → runs tests + `pulumi preview`
-- **Merge to main** → runs tests + `pulumi up` on `prod` stack
+- **Pull Request** → runs tests + `pulumi preview` on dev
+- **Push to main** → runs tests + `pulumi up` on dev stack
+- **Manual dispatch** → choose `dev` or `prod` environment
 
 Required GitHub Actions secrets:
 
-- `PULUMI_ACCESS_TOKEN`
-- `AWS_OIDC_ROLE_ARN`
-- `GH_TOKEN`
+| Secret                | Description                                                                            |
+| --------------------- | -------------------------------------------------------------------------------------- |
+| `PULUMI_ACCESS_TOKEN` | Pulumi Cloud access token                                                              |
+| `AWS_OIDC_ROLE_ARN`   | IAM role ARN for GitHub Actions (output of `pulumi stack output githubActionsRoleArn`) |
+| `GH_TOKEN`            | GitHub PAT with `admin:org` and `user` scopes                                          |
 
 ## Troubleshooting
 
@@ -251,6 +307,8 @@ You are not authenticated with Pulumi Cloud. Run:
 pulumi login
 ```
 
+---
+
 ### Missing required configuration variable
 
 ```
@@ -263,6 +321,8 @@ A config value is missing for the current stack. Refer to [Set Pulumi config sec
 pulumi config set user-management:<variable> <value>
 ```
 
+---
+
 ### GitHub token has insufficient scopes
 
 ```
@@ -271,6 +331,8 @@ error: 403 Forbidden
 
 Your PAT does not have the required scopes. Regenerate it with `admin:org` and `user` scopes in GitHub → Settings → Developer settings → Personal access tokens.
 
+---
+
 ### GitHub username not found (404)
 
 ```
@@ -278,7 +340,8 @@ error: 404 Not Found — PUT /orgs/{org}/memberships/{username}
 ```
 
 The `name` field in `users.yaml` does not match a real GitHub username. Make sure each user has an existing GitHub account and the username is spelled correctly.
-z
+
+---
 
 ### AWS IAM Identity Center not enabled
 
@@ -313,6 +376,8 @@ npm run build
 ```
 
 Fix the TypeScript error in `src/` before running `pulumi up`.
+
+---
 
 ### `pulumi up` runs but no changes applied
 
