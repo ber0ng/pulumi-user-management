@@ -2,6 +2,62 @@
 
 Manages GitHub org membership/teams and AWS IAM users from a single config file.
 
+## Architecture
+
+```mermaid
+---
+config:
+  theme: neo-dark
+---
+flowchart TD
+    A[users.yaml] --> B[Pulumi Program]
+    B --> C{Stack}
+
+    C -->|dev| D[GitHub Provider]
+    C -->|prod| E[GitHub Provider]
+
+    D --> D1[Create Teams\nbackend / frontend]
+    D --> D2[Invite Users to Org]
+    D --> D3[Assign Users to Teams]
+
+    E --> E2[Invite Users to Org]
+    E --> E3[Assign Users to Teams\nlook up existing]
+
+    C -->|dev| F[AWS IAM Identity Center]
+    C -->|prod| G[AWS IAM Identity Center]
+
+    F --> F1[Create SSO Users]
+    F --> F2[Create Groups\ndevelopers / admins]
+    F --> F3[Attach Permission Sets\nReadOnly / PowerUser]
+    F --> F4[Assign Groups to Account]
+
+    G --> G1[Skip SSO Users\nmanaged by dev]
+    G --> G2[Create Groups\ndevelopers / admins]
+    G --> G3[Attach Permission Sets]
+    G --> G4[Assign Groups to Account]
+
+    B --> H[GitHub Actions OIDC Role]
+    H --> H1[IAM Role with\nWebIdentity Trust]
+    H1 --> H2[No Access Keys needed]
+```
+
+### CI/CD Flow
+
+```mermaid
+---
+config:
+  theme: neo-dark
+---
+flowchart TD
+    I[GitHub Actions CI/CD] --> J{Trigger}
+    J -->|push to main| K[Deploy to dev]
+    J -->|manual dispatch| L{Environment?}
+    L -->|dev| K
+    L -->|prod| M[Deploy to prod]
+    K --> N[pulumi up - dev stack]
+    M --> O[pulumi up - prod stack]
+```
+
 ## Project Structure
 
 ```
@@ -70,15 +126,15 @@ pulumi config set githubOrg your-org-name (e.g., veron-devops)
 pulumi config set --secret github:token ghp_xxxx
 
 # AWS (or use environment variables)
-pulumi config set aws:region ap-southeast-1
+pulumi config set aws:region ap-southeast-2
 ```
 
 ### 3. Add / edit users
 
 Edit `config/users.yaml`. Fields:
 
-| Field         | Required                         | Values |
-| ------------- | -------------------------------- | ------ |
+| Field         | Required                         |
+| ------------- | -------------------------------- |
 | `name`        | GitHub username                  |
 | `email`       | User email                       |
 | `github_team` | `backend` \| `frontend`          |
