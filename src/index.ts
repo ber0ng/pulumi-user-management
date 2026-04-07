@@ -28,6 +28,7 @@ users.forEach(u => new GitHubUserComponent(u, ghTeams, { provider: githubProvide
 const ssoConfig: SsoConfig = {
     instanceArn: cfg.require("ssoInstanceArn"),
     identityStoreId: cfg.require("ssoIdentityStoreId"),
+    awsAccountId: cfg.require("awsAccountId"),
 };
 
 const awsGroups = createAwsGroups(ssoConfig);

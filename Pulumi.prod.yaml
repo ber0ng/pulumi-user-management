@@ -6,3 +6,4 @@ config:
   user-management:githubActionsRepo: ber0ng/pulumi-user-management
   user-management:ssoInstanceArn: arn:aws:sso:::instance/ssoins-8259c97d48eda9fd
   user-management:ssoIdentityStoreId: d-97679707c8
+  user-management:awsAccountId: "429822431753"

@@ -6,6 +6,7 @@ import { resourceName, baseTags } from "../naming";
 export interface SsoConfig {
     instanceArn: string;
     identityStoreId: string;
+    awsAccountId: string;
 }
 
 export interface AwsGroups {
@@ -72,7 +73,7 @@ export class AwsUserComponent extends pulumi.ComponentResource {
 }
 
 export function createAwsGroups(ssoConfig: SsoConfig): AwsGroups {
-    const accountId = aws.getCallerIdentityOutput().accountId;
+    const accountId = ssoConfig.awsAccountId;
 
     const makeGroup = (
         slug: string,
