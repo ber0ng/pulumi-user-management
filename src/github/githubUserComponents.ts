@@ -3,6 +3,7 @@ import * as github from "@pulumi/github";
 import { UserConfig } from "../types";
 import { resourceName } from "../naming";
 
+
 interface GitHubTeams {
     backend: github.Team;
     frontend: github.Team;
@@ -46,10 +47,23 @@ export class GitHubUserComponent extends pulumi.ComponentResource {
     }
 }
 
-export function createGitHubTeams(org: string, provider: github.Provider): GitHubTeams {
+export function createGitHubTeams(_org: string, provider: github.Provider): GitHubTeams {
+    const stack = pulumi.getStack();
+
+    if (stack !== "dev") {
+        // In non-dev stacks, look up the existing teams created by dev
+        const backendData = github.getTeamOutput({ slug: "backend" }, { provider });
+        const frontendData = github.getTeamOutput({ slug: "frontend" }, { provider });
+
+        return {
+            backend: github.Team.get("team-backend", backendData.id, {}, { provider }),
+            frontend: github.Team.get("team-frontend", frontendData.id, {}, { provider }),
+        };
+    }
+
     const makeTeam = (slug: string, description: string) =>
         new github.Team(resourceName("team", slug), {
-            name: resourceName(slug),
+            name: slug,
             description,
             privacy: "closed",
         }, { provider });
