@@ -26,43 +26,39 @@ export class AwsUserComponent extends pulumi.ComponentResource {
     constructor(user: UserConfig, groups: AwsGroups, ssoConfig: SsoConfig, opts?: pulumi.ComponentResourceOptions) {
         super("user-mgmt:aws:User", resourceName("sso", user.name), {}, opts);
 
-        const stack = pulumi.getStack();
         const childOpts = { parent: this };
 
-        // SSO users are global per AWS account — only create in dev stack
-        if (stack === "dev") {
-            this.user = new aws.identitystore.User(
-                resourceName("sso-user", user.name),
+        this.user = new aws.identitystore.User(
+            resourceName("sso-user", user.name),
+            {
+                identityStoreId: ssoConfig.identityStoreId,
+                userName: user.name,
+                displayName: user.name,
+                name: {
+                    givenName: user.name,
+                    familyName: user.name,
+                },
+                emails: {
+                    value: user.email,
+                    primary: true,
+                    type: "work",
+                },
+            },
+            childOpts
+        );
+
+        for (const grp of user.aws_groups ?? []) {
+            const groupData = groups[grp as keyof AwsGroups];
+            if (!groupData) continue;
+            new aws.identitystore.GroupMembership(
+                resourceName("sso-member", user.name, grp),
                 {
                     identityStoreId: ssoConfig.identityStoreId,
-                    userName: user.name,
-                    displayName: user.name,
-                    name: {
-                        givenName: user.name,
-                        familyName: user.name,
-                    },
-                    emails: {
-                        value: user.email,
-                        primary: true,
-                        type: "work",
-                    },
+                    groupId: groupData.group.groupId,
+                    memberId: this.user.userId,
                 },
                 childOpts
             );
-
-            for (const grp of user.aws_groups ?? []) {
-                const groupData = groups[grp as keyof AwsGroups];
-                if (!groupData) continue;
-                new aws.identitystore.GroupMembership(
-                    resourceName("sso-member", user.name, grp),
-                    {
-                        identityStoreId: ssoConfig.identityStoreId,
-                        groupId: groupData.group.groupId,
-                        memberId: this.user.userId,
-                    },
-                    childOpts
-                );
-            }
         }
 
         this.registerOutputs({

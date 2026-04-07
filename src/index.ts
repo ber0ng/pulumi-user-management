@@ -33,7 +33,10 @@ const ssoConfig: SsoConfig = {
 
 const awsGroups = createAwsGroups(ssoConfig);
 
-const awsUsers = users.map(u => new AwsUserComponent(u, awsGroups, ssoConfig));
+// Only create SSO users for this stack's account
+const stack = pulumi.getStack();
+const stackUsers = users.filter(u => u.aws_account === stack);
+const awsUsers = stackUsers.map(u => new AwsUserComponent(u, awsGroups, ssoConfig));
 
 // GitHub Actions OIDC Role
 const githubActionsRole = createGitHubOidcRole({
@@ -71,9 +74,7 @@ export const githubTeams = {
 
 export const githubActionsRoleArn = githubActionsRole.roleArn;
 
-export const ssoUsers = pulumi.getStack() === "dev"
-    ? users.reduce((acc, u, i) => {
-        acc[u.name] = { userId: awsUsers[i].user?.userId };
-        return acc;
-    }, {} as Record<string, object>)
-    : "SSO users managed by dev stack";
+export const ssoUsers = stackUsers.reduce((acc, u, i) => {
+    acc[u.name] = { userId: awsUsers[i].user?.userId };
+    return acc;
+}, {} as Record<string, object>);
