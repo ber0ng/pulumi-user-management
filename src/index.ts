@@ -70,7 +70,9 @@ export const githubTeams = {
 
 export const githubActionsRoleArn = githubActionsRole.roleArn;
 
-export const ssoUsers = users.reduce((acc, u, i) => {
-    acc[u.name] = { userId: awsUsers[i].user.userId };
-    return acc;
-}, {} as Record<string, object>);
+export const ssoUsers = pulumi.getStack() === "dev"
+    ? users.reduce((acc, u, i) => {
+        acc[u.name] = { userId: awsUsers[i].user?.userId };
+        return acc;
+    }, {} as Record<string, object>)
+    : "SSO users managed by dev stack";
